@@ -1,0 +1,6 @@
+{
+  "extends": ["entva-base"],
+  "env": {
+    "node": true
+  }
+}
