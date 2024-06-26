@@ -1,4 +1,4 @@
-const { expect } = require('chai');
+const expect = require('expect.js');
 const sinon = require('sinon');
 const proxyquire = require('proxyquire');
 
@@ -31,7 +31,7 @@ describe('index', () => {
     exitStub = sinon.stub(process, 'exit');
     process.send = sinon.spy();
 
-    instance = proxyquire('../index', {});
+    instance = proxyquire('../dist', {});
     req = {};
     res = {
       setHeader: sinon.stub().returnsThis(),
@@ -47,7 +47,7 @@ describe('index', () => {
   });
 
   it('middleware - passthrough', () => {
-    instance.middleware()(req, res, next);
+    instance.shutdownMiddleware()(req, res, next);
 
     expect(res.send.notCalled).to.be.true;
     expect(next.calledOnce).to.be.true;
@@ -59,7 +59,7 @@ describe('index', () => {
     process.kill(process.pid, SIGNAL);
     process.once(SIGNAL, () => {
       process.nextTick(() => {
-        instance.middleware()(req, res, next);
+        instance.shutdownMiddleware()(req, res, next);
         expect(res.status.calledWith(502)).to.be.true;
         expect(res.send.calledOnce).to.be.true;
         expect(res.setHeader.withArgs('Connection', 'close').calledOnce).to.be.true;

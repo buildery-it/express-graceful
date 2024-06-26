@@ -1,4 +1,8 @@
-const debug = require('debug')('@entva/express-graceful');
+import type { Application, Request, Response, NextFunction } from 'express';
+import type { Server } from 'http';
+import logger from 'debug';
+
+const debug = logger('@entva/express-graceful');
 
 const events = [
   'SIGTERM',
@@ -7,8 +11,8 @@ const events = [
 
 let isShuttingDown = false;
 let processTimeout = 1000;
-let httpListener;
-let onClose;
+let httpListener: Server;
+let onClose: ((event: string) => void) | undefined;
 
 const handleClose = () => {
   debug('Closed remaining connections.');
@@ -20,8 +24,8 @@ const handleTimeout = () => {
   process.exit(1);
 };
 
-const getShutdownHandler = (event) => () => {
-  if (isShuttingDown) return;
+const getShutdownHandler = (event: string) => () => {
+  if (isShuttingDown) return false;
 
   debug(`Received ${event}, shutting down.`);
 
@@ -30,25 +34,38 @@ const getShutdownHandler = (event) => () => {
   if (typeof onClose === 'function') onClose(event);
 
   setTimeout(handleTimeout, processTimeout);
+  return true;
 };
 
-const middleware = () => (req, res, next) => {
+export const middleware = (req: Request, res: Response, next: NextFunction) => {
   if (!isShuttingDown) return next();
   res.setHeader('Connection', 'close');
   res.status(502).send('Server is shutting down.');
 };
 
-const start = (app, options, handler) => {
-  const { host, port: desiredPort, timeout } = options;
-  const port = desiredPort || 3000;
+export const shutdownMiddleware = () => middleware;
+
+const defaultOptions = {
+  port: 3000,
+  timeout: 1000,
+};
+type Options = {
+  host?: string,
+  port?: number,
+  timeout?: number,
+};
+type Handler = (event: string) => void;
+export const start = (app: Application, options?: Options, handler?: Handler) => {
+  const { host, port, timeout } = { ...defaultOptions, ...options };
+
   const message = `Server listening on http://${host || 'localhost'}:${port}`;
 
   if (typeof timeout === 'number') processTimeout = timeout;
   onClose = handler;
 
-  const sendEvents = (text) => {
+  const sendEvents = (text: string) => {
     console.log(text);
-    if (process.connected) process.send('ready');
+    if (process.connected) process.send?.('ready');
   };
 
   if (host) {
@@ -59,5 +76,3 @@ const start = (app, options, handler) => {
 
   events.forEach((event) => process.on(event, getShutdownHandler(event)));
 };
-
-module.exports = { middleware, start };
